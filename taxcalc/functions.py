@@ -22,7 +22,7 @@ def net_salary_income(SALARIES):
 
 
 @iterate_jit(nopython=True)
-def net_rental_income(net_rent):
+def net_rental_income(INCOME_HP):
     """
     Compute house-property rental income net of taxes, depreciation, and
     mortgage interest.
@@ -30,25 +30,26 @@ def net_rental_income(net_rent):
     # TODO: when gross rental income and taxes, depreciation, and interest
     #       are available, do the calculation
     # TODO: when using net_rent as function argument, no calculations neeed
-    return net_rent
+    return INCOME_HP
 
 
 @iterate_jit(nopython=True)
-def total_other_income(other_income):
+def total_other_income(TOTAL_INCOME_OS):
     """
     Compute other_income from its components.
     """
     # TODO: when components of other income are available, do the calculation
     # TODO: when using other_income as function argument, no calculations neeed
-    return other_income
+    return TOTAL_INCOME_OS
 
 
 @iterate_jit(nopython=True)
-def gross_total_income(SALARIES, net_rent, other_income, GTI):
+def gross_total_income(SALARIES, INCOME_HP, TOTAL_PROFTS_GAINS_BP,
+                       TOTAL_INCOME_OS, GTI):
     """
     Compute GTI.
     """
-    GTI = SALARIES + net_rent + other_income
+    GTI = SALARIES + INCOME_HP + TOTAL_PROFTS_GAINS_BP + TOTAL_INCOME_OS
     return GTI
 
 
@@ -87,10 +88,20 @@ def pit_liability(calc):
     tbrk2 = calc.policy_param('tbrk2')
     tbrk3 = calc.policy_param('tbrk3')
     tbrk4 = calc.policy_param('tbrk4')
+    rebate_rate = calc.policy_param('rebate_rate')
+    rebate_thd = calc.policy_param('rebate_thd')
+    rebate_ceiling = calc.policy_param('rebate_ceiling')
+    surcharge_rate = calc.policy_param('surcharge_rate')
+    surcharge_thd = calc.policy_param('surcharge_thd')
+    rebate = np.where(taxinc > rebate_thd, 0.,
+                      np.minimum(rebate_rate * taxinc, rebate_ceiling))
     tax = (rate1 * np.minimum(taxinc, tbrk1) +
            rate2 * np.minimum(tbrk2 - tbrk1,
                               np.maximum(0., taxinc - tbrk1)) +
            rate3 * np.minimum(tbrk3 - tbrk2,
                               np.maximum(0., taxinc - tbrk2)) +
            rate4 * np.maximum(0., taxinc - tbrk3))
+    tax = np.where(rebate > tax, 0, tax - rebate)
+    surcharge = np.where(taxinc > surcharge_thd, tax * surcharge_rate, 0.)
+    tax = tax + surcharge
     calc.array('pitax', tax)
